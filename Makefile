@@ -1,5 +1,5 @@
-CFLAGS := -Ofast -s -flto -DNDEBUG
-OBJCFLAGS := -Ofast -s -DNDEBUG
+CFLAGS := -g -DDEBUG
+OBJCFLAGS := -g -DDEBUG
 gccw32 = i686-w64-mingw32.static-gcc
 g++w32 = i686-w64-mingw32.static-g++
 

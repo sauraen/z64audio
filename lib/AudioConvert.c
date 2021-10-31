@@ -819,105 +819,102 @@ void Audio_SaveSample_VadpcmC(AudioSampleInfo* sampleInfo) {
 	
 	char basename[1024];
 	FILE* output = fopen(sampleInfo->output, "w");
+	if(output == NULL){
+		printf_error("Could not open sample output file %s", sampleInfo->output);
+	}
+	printf_info("Saving [%s]", sampleInfo->output);
 	
 	String_GetBasename(basename, sampleInfo->output);
 	
+	// Loop
+	
 	fprintf(
 		output,
-		"ALADPCMPredictor %sPred[] = {\n",
-		basename
+		"AdpcmLoop %sLoop = {\n"
+		"	.start = %d,\n"
+		"	.end = %d,\n"
+		"	.count = 0x%08X,\n"
+		"	.origSpls = 0x%08X,\n",
+		basename,
+		sampleInfo->instrument.loop.start,
+		sampleInfo->instrument.loop.end,
+		sampleInfo->instrument.loop.count,
+		sampleInfo->samplesNum > sampleInfo->instrument.loop.end ? sampleInfo->samplesNum : 0
 	);
+	
+	if (sampleInfo->vadLoopBook.cast.p) {
+		fprintf(output,"	.loop = {\n");
+		
+		for (s32 i = 0; i < 0x10; i++) {
+			fprintf(output, "%6d, ", sampleInfo->vadLoopBook.cast.s16[i]);
+			if(i == 7) fprintf(output, "\n		");
+		}
+		fprintf(output, "	},\n");
+	}
+	fprintf(output, "};\n\n");
+	
+	// Codebook (predictor)
 	
 	u32 order = sampleInfo->vadBook.cast.u16[0];
 	u32 numPred = sampleInfo->vadBook.cast.u16[1];
 	
-	printf_debug("%s: order: [%d] nPred [%d]", __FUNCTION__, order, numPred);
-	
-	for (s32 j = 0; j < numPred; j++) {
-		fprintf(
-			output,
-			"	{\n"
-		);
-		for (s32 i = 0; i < 0x10; i++) {
-			fprintf(output, "		%d,\n", sampleInfo->vadBook.cast.s16[2 + i + 0x10 * j]);
-		}
-		fprintf(
-			output,
-			"	},\n"
-		);
-	}
-	
 	fprintf(
 		output,
-		"};\n\n"
+		"AdpcmBook %sBook = {\n"
+		"	.order = %d,\n"
+		"	.npredictors = %d,\n",
+		basename,
+		order,
+		numPred
 	);
 	
-	if (sampleInfo->vadLoopBook.cast.p) {
-		fprintf(
-			output,
-			"ALADPCMLoopU %sLoop = {\n"
-			"	.withtail = {\n"
-			"		.main = {\n"
-			"			.start = %d,\n"
-			"			.end = %d,\n"
-			"			.count = 0x%08X,\n"
-			"			.adpcmState = 0x%08X,\n"
-			"		},\n"
-			"		.tail = {\n"
-			"			.data = {\n",
-			basename,
-			sampleInfo->instrument.loop.start,
-			sampleInfo->instrument.loop.end,
-			sampleInfo->instrument.loop.count,
-			sampleInfo->samplesNum > sampleInfo->instrument.loop.end ? sampleInfo->samplesNum : 0
-		);
-		
-		for (s32 i = 0; i < 0x10; i++) {
-			fprintf(
-				output,
-				"				%d,\n",
-				sampleInfo->vadLoopBook.cast.s16[i]
-			);
+	if(order * numPred > 0){
+		fprintf(output, "	.book = {\n");
+	
+		for (s32 j = 0; j < numPred; j++) {
+			fprintf(output, "		");
+			for (s32 i = 0; i < 0x10; i++) {
+				fprintf(output, "%6d, ", sampleInfo->vadBook.cast.s16[2 + i + 0x10 * j]);
+				if(i == 7) fprintf(output, "\n		");
+			}
+			fprintf(output, "\n");
 		}
-		fprintf(
-			output,
-			"			},\n"
-			"		},\n"
-			"	},\n"
-			"};\n\n"
-		);
-	} else {
-		fprintf(
-			output,
-			"ALADPCMLoopU %sLoop = {\n"
-			"	.notail = {\n"
-			"		.start = %d,\n"
-			"		.end = %d,\n"
-			"		.count = 0x%08X,\n"
-			"		.adpcmState = 0x%08X,\n"
-			"	}\n"
-			"};\n\n",
-			basename,
-			sampleInfo->instrument.loop.start,
-			sampleInfo->instrument.loop.end,
-			sampleInfo->instrument.loop.count,
-			sampleInfo->samplesNum > sampleInfo->instrument.loop.end ? sampleInfo->samplesNum : 0
-		);
+		
+		fprintf(output, "	},\n");
 	}
+	fprintf(output, "};\n\n");
+	
+	// Sample
 	
 	fprintf(
 		output,
-		"ABSample %sSample = {\n"
+		"AudioBankSample %sSample = {\n"
+		"	.bits4 = 0,\n"
+		"	.bits2 = 0,\n"
+		"	.unk_bits2 = 0,\n"
 		"	.len = %d,\n"
+		"	.sampleAddr = %sTable,\n"
 		"	.loop = &%sLoop,\n"
-		"	.book = %sPred,\n"
+		"	.book = &%sBook,\n"
 		"};\n\n",
 		basename,
 		sampleInfo->size,
 		basename,
+		basename,
 		basename
 	);
 	
+	#if 0
+	
+	// A few things here:
+	// 1. Envelopes don't have to have 4 points. The envelopes used with music
+	//    instruments seem to always, but this isn't required and for the
+	//    technical sequences (e.g. seq0), most of the envelopes have 3 points.
+	// 2. The envelope must terminate, usually with rate = -1 and level = 0,
+	//    but rate = -2 and rate = -3 have other special meanings and can also
+	//    terminate the envelope. The envelope below will probably crash.
+	// 3. The envelope is a property of the instrument, not a property of the
+	//    sample, and z64audio is for importing samples, not instruments.
 	fprintf(
 		output,
 		"ABEnvelope %sEnv = {\n"
@@ -973,8 +970,32 @@ void Audio_SaveSample_VadpcmC(AudioSampleInfo* sampleInfo) {
 		)
 	);
 	
+	#endif
+	
 	fclose(output);
-	printf_info("Saving [%s]", sampleInfo->output);
+	
+	char header[4096];
+	strncpy(header, sampleInfo->output, 4096);
+	int l = strlen(header);
+	header[l-1] = 'h';
+	output = fopen(header, "w");
+	if(output == NULL){
+		printf_error("Could not open header %s", header);
+	}
+	printf_info("Saving [%s]", header);
+	
+	fprintf(output, 
+		"extern u8 %sTable[];\n"
+		"AdpcmLoop %sLoop;\n"
+		"AdpcmBook %sBook;\n"
+		"AudioBankSample %sSample;\n",
+		basename,
+		basename,
+		basename,
+		basename
+	);
+	
+	fclose(output);
 	
 	u16 emp = 0;
 	char path[128];
