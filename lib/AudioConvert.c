@@ -843,7 +843,7 @@ void Audio_SaveSample_VadpcmC(AudioSampleInfo* sampleInfo) {
 	);
 	
 	if (sampleInfo->vadLoopBook.cast.p) {
-		fprintf(output,"	.loop = {\n");
+		fprintf(output,"	.state = {\n");
 		
 		for (s32 i = 0; i < 0x10; i++) {
 			fprintf(output, "%6d, ", sampleInfo->vadLoopBook.cast.s16[i]);
@@ -889,9 +889,6 @@ void Audio_SaveSample_VadpcmC(AudioSampleInfo* sampleInfo) {
 	fprintf(
 		output,
 		"AudioBankSample %sSample = {\n"
-		"	.bits4 = 0,\n"
-		"	.bits2 = 0,\n"
-		"	.unk_bits2 = 0,\n"
 		"	.len = %d,\n"
 		"	.sampleAddr = %sTable,\n"
 		"	.loop = &%sLoop,\n"
@@ -910,11 +907,17 @@ void Audio_SaveSample_VadpcmC(AudioSampleInfo* sampleInfo) {
 	// 1. Envelopes don't have to have 4 points. The envelopes used with music
 	//    instruments seem to always, but this isn't required and for the
 	//    technical sequences (e.g. seq0), most of the envelopes have 3 points.
+	//    In vanilla banks, envelopes are always aligned to 16 bytes (4 points)
+	//    even if they only have 3 points (bank 0 has some of these), but as far
+	//    as I can tell this is not actually needed.
 	// 2. The envelope must terminate, usually with rate = -1 and level = 0,
 	//    but rate = -2 and rate = -3 have other special meanings and can also
 	//    terminate the envelope. The envelope below will probably crash.
 	// 3. The envelope is a property of the instrument, not a property of the
-	//    sample, and z64audio is for importing samples, not instruments.
+	//    sample. Furthermore, samples are usually shared across multiple
+	//    instruments. Until there is a way to have z64audio convert multiple
+	//    samples at the same time which should be part of the same instrument,
+	//    this should be left out.
 	fprintf(
 		output,
 		"ABEnvelope %sEnv = {\n"
@@ -957,8 +960,7 @@ void Audio_SaveSample_VadpcmC(AudioSampleInfo* sampleInfo) {
 		"	}\n"
 		"};\n",
 		basename,
-		// For some reason the splits have to subtracted with 21 to match
-		// how they're mapped in OoT
+		// Note 0 in Audioseq = MIDI note 21
 		CLAMP(sampleInfo->instrument.highNote - 21, 0, 127),
 		CLAMP(sampleInfo->instrument.lowNote - 21, 0, 127),
 		basename,
