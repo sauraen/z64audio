@@ -889,7 +889,11 @@ void Audio_SaveSample_VadpcmC(AudioSampleInfo* sampleInfo) {
 	fprintf(
 		output,
 		"AudioBankSample %sSample = {\n"
-		"	.len = %d,\n"
+		"	.codec = 0,\n"
+		"	.medium = 0,\n"
+		"	.unk_bit26 = 0,\n"
+		"	.unk_bit25 = 0,\n"
+		"	.size = %d,\n"
 		"	.sampleAddr = %sTable,\n"
 		"	.loop = &%sLoop,\n"
 		"	.book = &%sBook,\n"
